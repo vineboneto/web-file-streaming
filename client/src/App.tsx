@@ -1,41 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-
-function CardDownload({
-	children,
-	status,
-}: { children: React.ReactNode; status: "completed" | "pendent" }) {
-	return (
-		<div
-			className={`
-				flex space-x-2 max-w-lg w-full justify-center items-center py-2 px-3 font-semibold rounded-md
-				${status === "pendent" ? "bg-[#646cff]" : "bg-green-500"}
-			`}
-		>
-			{children}
-		</div>
-	);
-}
-
-type DownloadValue = {
-	total: number;
-	progress: number;
-	percentual: number;
-	addedAt: number;
-};
-
-type Download = Record<string, DownloadValue>;
-
-const REMOVE_DELAY = 10_000; // Tempo para remover (10 segundos)
+import { CardDownload } from "./components/cards/card-download";
+import { useDownload } from "./hooks/use-download";
 
 function App() {
-	const [download, setDownload] = useState<Download>({});
-	const intervalRef = useRef<number | null>(null);
-	const downloads = useMemo(() => {
-		return Object.entries(download).map(([key, value]) => ({
-			...value,
-			name: key,
-		}));
-	}, [download]);
+	const { downloads, setDownload } = useDownload();
 
 	async function onDownloadDemand() {
 		try {
@@ -108,58 +75,62 @@ function App() {
 		}
 	}
 
-	useEffect(() => {
-		if (!intervalRef.current) {
-			intervalRef.current = setInterval(() => {
-				setDownload((old) => {
-					const now = Date.now();
-					// Filtra os downloads que ainda não completaram o tempo
-					const updated = Object.fromEntries(
-						Object.entries(old).filter(
-							([, v]) =>
-								!(v.percentual === 1 && now - v.addedAt >= REMOVE_DELAY),
-						),
-					);
+	async function onDownloadByAnchor() {
+		try {
+			const response = await fetch("http://localhost:3333/streaming");
 
-					return updated;
-				});
-			}, 1_000);
-		}
-
-		// Limpa o intervalo ao desmontar o componente
-		return () => {
-			if (intervalRef.current) {
-				clearInterval(intervalRef.current);
-				intervalRef.current = null;
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
 			}
-		};
-	}, []);
+
+			const blob = await response.blob();
+
+			const url = window.URL.createObjectURL(blob);
+
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = "great-size-file.xlsx";
+			document.body.appendChild(a);
+
+			a.click();
+
+			document.body.removeChild(a);
+			window.URL.revokeObjectURL(url);
+
+			console.log("Download iniciado com sucesso!");
+		} catch (error) {
+			console.error("Erro ao fazer o download:", error);
+		}
+	}
 
 	return (
 		<main className="flex flex-col justify-center items-center w-screen">
 			<h1>Web File Streaming</h1>
 			<div className="mt-10 space-x-2">
 				<button type="button" onClick={onDownloadDemand}>
-					Downloading Streaming
+					Downloading By FileHandle
 				</button>
-				<button type="button">Send Streaming</button>
+				<button type="button" onClick={onDownloadByAnchor}>
+					Downloading By Anchor
+				</button>
+				<button type="button">Send File</button>
 
 				<div className="absolute bottom-20 left-0 right-0 z-10">
-					<div className="w-full max-h-32 pt-16 overflow-auto flex flex-col space-y-2 justify-center items-center">
+					<div className="w-full pt-16 overflow-auto flex flex-col space-y-2 justify-center items-center">
 						{downloads.map((v) => {
 							return (
 								<CardDownload
 									key={v.name}
+									isRemoving={v.isRemoving}
 									status={v.percentual === 1 ? "completed" : "pendent"}
 								>
 									<span className="truncate">{v.name}</span>
 									<div>
-										<span>
+										<span className="font-bold">
 											{v.percentual.toLocaleString("pt-BR", {
 												style: "percent",
 												minimumFractionDigits: 2,
 											})}
-											/100,00%
 										</span>
 									</div>
 								</CardDownload>
