@@ -61,3 +61,23 @@ Para testar a interação no frontend, você pode realizar as seguintes ações:
 - **Download**: Disparar o download de um arquivo a partir da aplicação React utilizando a tag anchor (`<a>`), que iniciará o download do arquivo gerado.
 
 - **Upload**: Enviar um arquivo do frontend utilizando o `FileHandler`, que fará o upload do arquivo para o servidor e o inserirá no banco de dados.
+
+## Receber Arquivos em Stream
+
+### Anotações 21/11
+
+- O plugin `@fastify-multipart` não permite um controle fino sobre o fluxo de recebimento e escrita de arquivos. Parece que ele exige que o arquivo seja totalmente recebido na memória antes de poder ser escrito no disco, o que não é ideal para arquivos grandes.
+- O comportamento desejado é:
+  - Receber os dados do cliente em stream.
+  - À medida que os chunks de dados são recebidos, escrever diretamente no disco sem armazená-los completamente na memória.
+  - Liberar a memória conforme os dados são escritos, sem precisar carregar o arquivo inteiro antes da escrita.
+  
+  No entanto, parece que o `@fastify-multipart` não oferece essa flexibilidade, pois ele precisa receber o arquivo inteiro da rede antes de permitir que você escreva em disco.
+
+- **Próximos passos**:
+  - Criar um `Dockerfile` para subir os serviços necessários e configurar o Nginx para bloquear o tráfego de arquivos maiores que 10MB. Isso ajudará a testar o código em um ambiente controlado e verificar as limitações de tráfego e se os arquivos realmente estão sendo enviados em stream.
+  - Testar o fluxo de upload de arquivos em Go para verificar se é possível controlar melhor o fluxo de dados e escrever diretamente no disco sem carregar o arquivo inteiro na memória.
+  - Investigar como Go lida com streams de arquivos para evitar os mesmos limites que o Fastify pode ter.
+  
+- **Observação adicional**:
+  - Ao criar um arquivo Excel em stream, o arquivo só é escrito após todas as linhas forem enviadas para o excel. Isso significa que quanto maior a planilha, maior será a utilização de memória utilizada. Esse comportamento pode ser problemático para grandes arquivos. Testar a mesma operação em Go para comparar e verificar se há diferenças no consumo de memória ao escrever arquivos Excel em stream.
