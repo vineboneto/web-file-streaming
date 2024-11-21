@@ -96,7 +96,7 @@ export function useDownload() {
 				});
 				const writable = await fileHandle.createWritable();
 
-				const response = await fetch("http://localhost:3333/streaming", {
+				const response = await fetch("http://localhost:3333/download", {
 					method: "GET",
 				});
 
@@ -153,7 +153,7 @@ export function useDownload() {
 
 		async function anchor() {
 			try {
-				const response = await fetch("http://localhost:3333/streaming");
+				const response = await fetch("http://localhost:3333/download");
 
 				if (!response.ok) {
 					throw new Error(`HTTP error! status: ${response.status}`);
@@ -203,7 +203,7 @@ export function useDownload() {
 				const writable = await fileHandle.createWritable();
 
 				const response = await axios.get<ReadableStream>(
-					"http://localhost:3333/streaming",
+					"http://localhost:3333/download",
 					{
 						headers: {
 							Accept: "text/event-stream",
@@ -268,7 +268,7 @@ export function useDownload() {
 
 		async function anchor() {
 			try {
-				const response = await axios.get("http://localhost:3333/streaming", {
+				const response = await axios.get("http://localhost:3333/download", {
 					responseType: "blob", // Configura para tratar a resposta como um blob
 				});
 

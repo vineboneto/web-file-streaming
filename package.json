@@ -12,12 +12,14 @@
   "license": "ISC",
   "dependencies": {
     "@fastify/cors": "^10.0.1",
+    "async": "^3.2.6",
     "axios": "^1.7.7",
     "exceljs": "^4.4.0",
     "fastify": "^5.1.0",
     "fs-extra": "^11.2.0"
   },
   "devDependencies": {
-    "@faker-js/faker": "^9.2.0"
+    "@faker-js/faker": "^9.2.0",
+    "@types/async": "^3.2.24"
   }
 }
