@@ -61,3 +61,23 @@ To test the interaction on the frontend, you can perform the following actions:
 - **Download**: Trigger the download of a file from the React application using the anchor tag (`<a>`), which will initiate the download of the generated file.
 
 - **Upload**: Upload a file from the frontend using the `FileHandler`, which will send the file to the server and insert it into the database.
+
+## Receiving Files in Stream
+
+### Notes 21/11
+
+- The `@fastify-multipart` plugin does not allow fine-grained control over the file receiving and writing process. It seems that it requires the entire file to be fully received in memory before it can be written to disk, which is not ideal for large files.
+- The desired behavior is:
+  - Receive the data from the client in stream.
+  - As chunks of data are received, write them directly to disk without fully storing them in memory.
+  - Free up memory as the data is written, without needing to load the entire file before writing.
+
+  However, it seems that `@fastify-multipart` does not offer this flexibility, as it requires the whole file to be received from the network before allowing you to write to disk.
+
+- **Next steps**:
+  - Create a `Dockerfile` to bring up the required services and configure Nginx to block file traffic larger than 10MB. This will help test the code in a controlled environment and check the traffic limits and whether the files are actually being sent in stream.
+  - Test the file upload flow in Go to check if it's possible to better control the data flow and write directly to disk without loading the entire file into memory.
+  - Investigate how Go handles file streams to avoid the same limitations that Fastify may have.
+
+- **Additional observation**:
+  - When creating an Excel file in stream, the file is only written after all the rows have been sent to the Excel file. This means the larger the spreadsheet, the greater the memory usage. This behavior can be problematic for large files. Test the same operation in Go to compare and check if there are differences in memory consumption when writing Excel files in stream.
