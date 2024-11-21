@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "@fastify/cors": "^10.0.1",
+    "axios": "^1.7.7",
     "exceljs": "^4.4.0",
     "fastify": "^5.1.0",
     "fs-extra": "^11.2.0"
