@@ -1,8 +1,9 @@
 // main.js
 import { Worker } from "node:worker_threads";
 import fs from "node:fs";
+import path from "node:path";
 
-await fs.promises.rm("great-size-file.xlsx", { force: true });
+await fs.promises.rm("big-great-size-file.xlsx", { force: true });
 
 // Função para monitorar o uso de memória
 function formatMemoryUsage(memoryUsage) {
@@ -23,7 +24,9 @@ function monitorMemory() {
 setInterval(monitorMemory, 2000);
 
 // Criar e rodar o worker para gerar o arquivo Excel
-const worker = new Worker("./src/worker.js");
+const worker = new Worker(
+	path.join(process.cwd(), "scripts/make-file", "worker.js"),
+);
 
 worker.on("message", (msg) => {
 	if (msg.status === "success") {

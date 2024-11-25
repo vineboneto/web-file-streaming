@@ -81,3 +81,18 @@ Para testar a interação no frontend, você pode realizar as seguintes ações:
   
 - **Observação adicional**:
   - Ao criar um arquivo Excel em stream, o arquivo só é escrito após todas as linhas forem enviadas para o excel. Isso significa que quanto maior a planilha, maior será a utilização de memória utilizada. Esse comportamento pode ser problemático para grandes arquivos. Testar a mesma operação em Go para comparar e verificar se há diferenças no consumo de memória ao escrever arquivos Excel em stream.
+
+### Anotações 25/11
+
+### Descrição do Problema
+
+- **Fastify:**
+  - Ao tentar realizar o streaming de arquivos de um cliente, foi possível implementar a funcionalidade usando o `http` nativo do Node.js. No entanto, não conseguiu-se replicar essa abordagem diretamente com o `fastify`. Para acessar `http` em conjunto com `fastify` é necessário alterar a propriedade `serverFactory` diretamente e isso implica em  ajustar middlewares, parsers de cookies, entre outros componentes que o `fastify` automatiza, pois uma vez que a request é tratada pelo `http` ela não chega ao `fastify`. Isso pode ser um processo trabalhoso.
+
+- **Go:**
+  - Um problema semelhante foi observado ao tentar escrever arquivos `.xlsx` de maneira sob demanda. No Go, ao tentar gerar o arquivo, ele só escreve o conteúdo no final, ao invés de escrever enquanto o arquivo está sendo criado, o que é necessário para este caso de uso.
+
+- **Próximos Passos**
+  1. **Testar uma requisição direta do navegador:** Verificar se o servidor aceita a escrita do arquivo diretamente, como esperado.
+  2. **Testar com Axios:** Reproduzir o comportamento usando Axios para enviar as requisições e verificar se o servidor lida com o fluxo de dados como esperado.
+  3. **Verificar atividades do Dockerfile e servidor Go:** Continuar com as configurações já implementadas no Dockerfile e no servidor Go, mantendo a consistência do ambiente de produção.

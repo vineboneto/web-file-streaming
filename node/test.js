@@ -1,5 +1,6 @@
 import axios from "axios";
 import fs from "node:fs";
+import { ReadableStream } from "node:stream/web";
 import FormData from "form-data";
 import { AxiosError } from "axios";
 
@@ -106,7 +107,6 @@ export async function sendFileStream() {
 
 	form.append("file", fileStream, {
 		contentType: "binary/octet-stream",
-		// knownLength: (await fs.promises.stat(filePath)).size,
 		filename: "./great-size-file.xlsx",
 	});
 
@@ -130,6 +130,36 @@ export async function sendFileStream() {
 	console.timeEnd("send-file-stream");
 }
 
+export async function sendFileStream2() {
+	const filePath = "./great-size-file.xlsx";
+	const fileStream = fs.createReadStream(filePath);
+
+	const readable = new ReadableStream({
+		async start(controller) {
+			for await (const chunk of fileStream) {
+				// console.log("Delay before sending chunk...");
+				// await new Promise((res) => setTimeout(res, 100));
+				controller.enqueue(chunk);
+
+				// console.log("Send chunk ok...");
+			}
+			controller.close();
+		},
+	});
+
+	const response = await fetch("http://localhost:3333/send-file-stream-2", {
+		method: "POST",
+		body: readable,
+		headers: {
+			"Content-Type": "application/octet-stream",
+			"X-Filename": "great-size-file.xlsx",
+		},
+		duplex: "half",
+	});
+
+	console.log("Resposta do servidor:", await response.text());
+}
+
 async function main() {
 	const [, , command] = process.argv; // Pega o terceiro argumento da linha de comando
 
@@ -148,6 +178,9 @@ async function main() {
 			break;
 		case "sendFileStream":
 			await sendFileStream();
+			break;
+		case "sendFileStream2":
+			await sendFileStream2();
 			break;
 		default:
 			console.log(

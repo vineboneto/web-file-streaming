@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import fs from "node:fs";
 import path from "node:path";
+import http from "node:http";
 import { pipeline } from "node:stream/promises";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
@@ -15,10 +16,44 @@ import {
 	queueFork,
 } from "./excel-run.js";
 
-// monitorMemory();
+monitorMemory();
+
+const serverFactory = (handler, opts) => {
+	const server = http.createServer((req, res) => {
+		if (req.url === "/send-file-stream-2" && req.method === "POST") {
+			const output = path.join("tempfile.xlsx");
+			const writeStream = fs.createWriteStream(output);
+
+			const processData = async (chunk) => {
+				// console.log("Delay before writing chunk...");
+				// // Atraso de 1 segundo (1000ms)
+				// await new Promise((resolve) => setTimeout(resolve, 1_000));
+				// console.log("Writing chunk:", chunk.length);
+				writeStream.write(chunk);
+			};
+
+			req.on("data", async (chunk) => {
+				await processData(chunk);
+			});
+
+			req.on("end", async () => {
+				writeStream.end();
+				console.log("End");
+				res.statusCode = 200;
+				res.end("Processado com sucesso");
+			});
+			return;
+		}
+
+		handler(req, res);
+	});
+
+	return server;
+};
 
 const app = Fastify({
 	logger: true,
+	serverFactory,
 });
 
 app.register(multipart, {
@@ -27,6 +62,10 @@ app.register(multipart, {
 		// parts: Number.POSITIVE_INFINITY,
 		// fileSize: Number.POSITIVE_INFINITY,
 	},
+});
+
+app.addHook("onRequest", () => {
+	console.log("Paseei aqui");
 });
 
 app.register(cors, {

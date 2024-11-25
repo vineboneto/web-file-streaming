@@ -1,4 +1,5 @@
 import Excel from "exceljs";
+import fs from "node:fs";
 import { fakerPT_BR as faker } from "@faker-js/faker";
 import { parentPort } from "node:worker_threads";
 
@@ -15,10 +16,13 @@ const TOTAL = 1e6; // 1m
 
 async function generateExcelStream() {
 	function setupSheet() {
+		const stream = fs.createWriteStream(FILENAME);
+
 		const workbook = new Excel.stream.xlsx.WorkbookWriter({
 			filename: FILENAME,
 			useSharedStrings: true,
 			useStyles: true,
+			stream,
 		});
 
 		const sheet = workbook.addWorksheet("products", {
