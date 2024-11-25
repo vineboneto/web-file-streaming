@@ -20,7 +20,7 @@ monitorMemory();
 
 const serverFactory = (handler, opts) => {
 	const server = http.createServer((req, res) => {
-		if (req.url === "/send-file-stream-2" && req.method === "POST") {
+		if (req.url === "/send-file-stream-by-http" && req.method === "POST") {
 			const output = path.join("tempfile.xlsx");
 			const writeStream = fs.createWriteStream(output);
 
@@ -53,20 +53,11 @@ const serverFactory = (handler, opts) => {
 
 const app = Fastify({
 	logger: true,
+	requestTimeout: 1_000 * 60 * 60,
 	serverFactory,
 });
 
-app.register(multipart, {
-	limits: {
-		// fileSize: 100 * 1024 * 1024, // Aumenta o limite para 100MB
-		// parts: Number.POSITIVE_INFINITY,
-		// fileSize: Number.POSITIVE_INFINITY,
-	},
-});
-
-app.addHook("onRequest", () => {
-	console.log("Paseei aqui");
-});
+app.register(multipart);
 
 app.register(cors, {
 	origin: "*",
@@ -111,7 +102,7 @@ app.post("/send-file", async (req, reply) => {
 /**
  * Recebe o arquivo (o arquivo precisar ser recebido inteiro) e escreve em stream
  */
-app.post("/send-file-stream", async (req, reply) => {
+app.post("/send-file-stream-by-formdata", async (req, reply) => {
 	try {
 		const filePath = path.join("public", "great-size-file.xlsx");
 		const writeStream = fs.createWriteStream(filePath);
@@ -133,6 +124,37 @@ app.post("/send-file-stream", async (req, reply) => {
 			.status(500)
 			.send({ error: "Erro ao processar o arquivo", message: err.message });
 	}
+});
+
+// Canalizador de fluxo
+app.addContentTypeParser("*", (request, payload, done) => {
+	done();
+});
+/**
+ * Possível de travar o event-loop dependendo do número de requisições
+ */
+app.post("/send-file-stream-by-fastify", (req, reply) => {
+	const output = path.join(`tempfile-${req.id}.xlsx`);
+	const writeStream = fs.createWriteStream(output);
+
+	const processData = async (chunk) => {
+		console.log("write");
+		console.log("Delay before writing chunk...");
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		console.log("Writing chunk:", chunk.length);
+		writeStream.write(chunk);
+	};
+
+	req.raw.on("data", async (chunk) => {
+		await processData(chunk);
+	});
+
+	req.raw.on("end", async () => {
+		console.log("End");
+		writeStream.end();
+		reply.send("Processado com sucesso");
+	});
+	return;
 });
 
 app.get("/download", async (req, reply) => {

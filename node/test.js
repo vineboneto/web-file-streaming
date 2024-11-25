@@ -130,34 +130,76 @@ export async function sendFileStream() {
 	console.timeEnd("send-file-stream");
 }
 
-export async function sendFileStream2() {
+export async function sendFileStreamFastify() {
 	const filePath = "./great-size-file.xlsx";
 	const fileStream = fs.createReadStream(filePath);
 
 	const readable = new ReadableStream({
 		async start(controller) {
 			for await (const chunk of fileStream) {
-				// console.log("Delay before sending chunk...");
-				// await new Promise((res) => setTimeout(res, 100));
+				console.log("Delay before sending chunk...");
+				await new Promise((res) => setTimeout(res, 100));
 				controller.enqueue(chunk);
 
-				// console.log("Send chunk ok...");
+				console.log("Send chunk ok...");
 			}
 			controller.close();
 		},
 	});
 
-	const response = await fetch("http://localhost:3333/send-file-stream-2", {
-		method: "POST",
-		body: readable,
-		headers: {
-			"Content-Type": "application/octet-stream",
-			"X-Filename": "great-size-file.xlsx",
+	const response = await fetch(
+		"http://localhost:3333/send-file-stream-by-fastify",
+		{
+			method: "POST",
+			body: readable,
+			headers: {
+				"Content-Type": "application/octet-stream",
+				"X-Filename": "great-size-file.xlsx",
+			},
+			duplex: "half",
 		},
-		duplex: "half",
-	});
+	);
 
 	console.log("Resposta do servidor:", await response.text());
+}
+
+export async function sendFileStreamFastifyParallel() {
+	const promises = Array.from({ length: 10 }, () => {
+		return () => {
+			return new Promise((res) => {
+				const filePath = "./great-size-file.xlsx";
+				const fileStream = fs.createReadStream(filePath);
+				const readable = new ReadableStream({
+					async start(controller) {
+						for await (const chunk of fileStream) {
+							console.log("Delay before sending chunk...");
+							await new Promise((res) => setTimeout(res, 100));
+							controller.enqueue(chunk);
+
+							console.log("Send chunk ok...");
+						}
+						controller.close();
+					},
+				});
+				return fetch("http://localhost:3333/send-file-stream-by-fastify", {
+					method: "POST",
+					body: readable,
+					headers: {
+						"Content-Type": "application/octet-stream",
+						"X-Filename": "great-size-file.xlsx",
+					},
+					duplex: "half",
+				}).then(res);
+			});
+		};
+	});
+
+	const response = await Promise.all(promises.map((p) => p()));
+
+	console.log(
+		"Resposta do servidor:",
+		await Promise.all(response.map((v) => v.text())),
+	);
 }
 
 async function main() {
@@ -179,8 +221,11 @@ async function main() {
 		case "sendFileStream":
 			await sendFileStream();
 			break;
-		case "sendFileStream2":
-			await sendFileStream2();
+		case "sendFileStreamFastify":
+			await sendFileStreamFastify();
+			break;
+		case "sendFileStreamFastifyParallel":
+			await sendFileStreamFastifyParallel();
 			break;
 		default:
 			console.log(

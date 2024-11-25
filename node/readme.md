@@ -89,6 +89,16 @@ To test the interaction on the frontend, you can perform the following actions:
 - **Fastify:**
   - While attempting to implement file streaming from a client, the functionality was successfully implemented using Node.js's native `http`. However, this approach couldn't be directly replicated with `fastify`. To use `http` alongside `fastify`, the `serverFactory` property needs to be modified, which implies adjusting middlewares, cookie parsers, and other components that `fastify` automates. Once the request is handled by `http`, it doesn't reach `fastify`. This can be a time-consuming process.
 
+  - Note: After some hours, it was discovered that it's possible to stream the data directly to the request, allowing for serialization and on-demand data processing. To implement this in `fastify`, it's necessary to add a custom `ContentTypeParser`, which resolves all the issues:
+
+    ```javascript
+    app.addContentTypeParser("*", (request, payload, done) => {
+      done();
+    });
+    ```
+
+- Based on the tests, this approach doesn't block the event loop, but it's important to find a more effective tool to test this.
+
 - **Go:**
   - A similar problem was observed when trying to write `.xlsx` files on demand. In Go, when attempting to generate the file, it writes the content at the end instead of writing it while the file is being created, which is necessary for this use case.
 
