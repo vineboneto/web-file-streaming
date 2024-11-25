@@ -138,9 +138,8 @@ export async function sendFileStreamFastify() {
 		async start(controller) {
 			for await (const chunk of fileStream) {
 				console.log("Delay before sending chunk...");
-				await new Promise((res) => setTimeout(res, 100));
+				await new Promise((res) => setTimeout(res, 50));
 				controller.enqueue(chunk);
-
 				console.log("Send chunk ok...");
 			}
 			controller.close();
@@ -173,10 +172,9 @@ export async function sendFileStreamFastifyParallel() {
 					async start(controller) {
 						for await (const chunk of fileStream) {
 							console.log("Delay before sending chunk...");
-							await new Promise((res) => setTimeout(res, 100));
+							// await new Promise((res) => setTimeout(res, 50));
 							controller.enqueue(chunk);
-
-							console.log("Send chunk ok...");
+							// console.log("Send chunk ok...");
 						}
 						controller.close();
 					},
@@ -200,6 +198,17 @@ export async function sendFileStreamFastifyParallel() {
 		"Resposta do servidor:",
 		await Promise.all(response.map((v) => v.text())),
 	);
+}
+
+export async function sendJSON() {
+	const response = await fetch("http://localhost:3333/json", {
+		method: "POST",
+		body: JSON.stringify({
+			name: "Vinciius",
+		}),
+	});
+
+	console.log("Resposta do servidor:", await response.text());
 }
 
 async function main() {
@@ -226,6 +235,9 @@ async function main() {
 			break;
 		case "sendFileStreamFastifyParallel":
 			await sendFileStreamFastifyParallel();
+			break;
+		case "sendJSON":
+			await sendJSON();
 			break;
 		default:
 			console.log(

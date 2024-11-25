@@ -37,7 +37,7 @@ const serverFactory = (handler, opts) => {
 			});
 
 			req.on("end", async () => {
-				writeStream.end();
+				writeStream.end(); // se o arquivo não tiver sido escirto completo por causa de algum delay, pode corremper a escrita, pois o write não pode ser chamado após o end
 				console.log("End");
 				res.statusCode = 200;
 				res.end("Processado com sucesso");
@@ -127,34 +127,26 @@ app.post("/send-file-stream-by-formdata", async (req, reply) => {
 });
 
 // Canalizador de fluxo
-app.addContentTypeParser("*", (request, payload, done) => {
-	done();
-});
+app.addContentTypeParser(
+	"application/octet-stream",
+	(request, payload, done) => {
+		done();
+	},
+);
 /**
  * Possível de travar o event-loop dependendo do número de requisições
  */
-app.post("/send-file-stream-by-fastify", (req, reply) => {
+app.post("/send-file-stream-by-fastify", async (req, reply) => {
 	const output = path.join(`tempfile-${req.id}.xlsx`);
 	const writeStream = fs.createWriteStream(output);
 
-	const processData = async (chunk) => {
-		console.log("write");
-		console.log("Delay before writing chunk...");
-		await new Promise((resolve) => setTimeout(resolve, 100));
-		console.log("Writing chunk:", chunk.length);
-		writeStream.write(chunk);
-	};
+	await pipeline(req.raw, writeStream);
 
-	req.raw.on("data", async (chunk) => {
-		await processData(chunk);
-	});
+	return reply.send("Arquivo Processado com sucesso");
+});
 
-	req.raw.on("end", async () => {
-		console.log("End");
-		writeStream.end();
-		reply.send("Processado com sucesso");
-	});
-	return;
+app.post("/json", async (req, reply) => {
+	reply.send(req.body);
 });
 
 app.get("/download", async (req, reply) => {
