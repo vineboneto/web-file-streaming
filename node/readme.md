@@ -97,7 +97,7 @@ To test the interaction on the frontend, you can perform the following actions:
     });
     ```
 
-- Based on the tests, this approach doesn't block the event loop, but it's important to find a more effective tool to test this.
+  - Based on the tests, this approach doesn't block the event loop, but it's important to find a more effective tool to test this.
 
 - **Go:**
   - A similar problem was observed when trying to write `.xlsx` files on demand. In Go, when attempting to generate the file, it writes the content at the end instead of writing it while the file is being created, which is necessary for this use case.
