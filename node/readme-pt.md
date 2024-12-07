@@ -104,3 +104,16 @@ Para testar a interação no frontend, você pode realizar as seguintes ações:
   1. **Testar uma requisição direta do navegador:** Verificar se o servidor aceita a escrita do arquivo diretamente, como esperado.
   2. **Testar com Axios:** Reproduzir o comportamento usando Axios para enviar as requisições e verificar se o servidor lida com o fluxo de dados como esperado.
   3. **Verificar atividades do Dockerfile e servidor Go:** Continuar com as configurações já implementadas no Dockerfile e no servidor Go, mantendo a consistência do ambiente de produção.
+
+## Enviar arquivo do frontend em Stream
+
+### Anotações 26/11
+
+Notou-se que não é possível realizar um fetch com `duplex: 'half'` no frontend, já que essa funcionalidade é exclusiva do fetch do Node.js. A única alternativa encontrada foi utilizar websockets, o que representou um grande desafio. Foi uma tarefa árdua e complexa, mas, com isso, foi possível enviar o arquivo em stream do frontend para o backend.
+
+- **Próximos Passos**
+  1. Melhorar o código da parte que utiliza websocket.
+  2. Testar o Websocket em concorrência.
+  3. Envolver Banco de Dados na Escrita de uma arquivo.
+  4. Ler um Excel em Stream e analisar consumo de memória.
+  

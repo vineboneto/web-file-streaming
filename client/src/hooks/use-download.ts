@@ -96,7 +96,7 @@ export function useDownload() {
 				});
 				const writable = await fileHandle.createWritable();
 
-				const response = await fetch("http://localhost:3333/download", {
+				const response = await fetch(`${BASE_URL}/download`, {
 					method: "GET",
 				});
 
@@ -153,7 +153,7 @@ export function useDownload() {
 
 		async function anchor() {
 			try {
-				const response = await fetch("http://localhost:3333/download");
+				const response = await fetch(`${BASE_URL}/download`);
 
 				if (!response.ok) {
 					throw new Error(`HTTP error! status: ${response.status}`);
@@ -203,7 +203,7 @@ export function useDownload() {
 				const writable = await fileHandle.createWritable();
 
 				const response = await axios.get<ReadableStream>(
-					"http://localhost:3333/download",
+					`${BASE_URL}/download`,
 					{
 						headers: {
 							Accept: "text/event-stream",
@@ -268,9 +268,40 @@ export function useDownload() {
 
 		async function anchor() {
 			try {
-				const response = await axios.get("http://localhost:3333/download", {
+				const response = await axios.get(`${BASE_URL}/download`, {
 					responseType: "blob", // Configura para tratar a resposta como um blob
 				});
+
+				// Criar URL a partir do Blob recebido
+				const url = window.URL.createObjectURL(response.data);
+
+				// Criar elemento <a> para disparar o download
+				const a = document.createElement("a");
+				a.href = url;
+				a.download = "great-size-file.xlsx"; // Nome do arquivo para o usuário
+				document.body.appendChild(a);
+
+				// Simular clique para iniciar o download
+				a.click();
+
+				// Limpar o elemento <a> e liberar o URL criado
+				document.body.removeChild(a);
+				window.URL.revokeObjectURL(url);
+
+				console.log("Download iniciado com sucesso!");
+			} catch (error) {
+				console.error("Erro ao fazer o download:", error);
+			}
+		}
+
+		async function staticFile() {
+			try {
+				const response = await axios.get(
+					`${BASE_URL}/public/great-size-file.xlsx`,
+					{
+						responseType: "blob", // Configura para tratar a resposta como um blob
+					},
+				);
 
 				// Criar URL a partir do Blob recebido
 				const url = window.URL.createObjectURL(response.data);
@@ -297,6 +328,7 @@ export function useDownload() {
 		return {
 			fileHandler,
 			anchor,
+			staticFile,
 		};
 	}
 
