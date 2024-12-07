@@ -109,7 +109,7 @@ To test the interaction on the frontend, you can perform the following actions:
 
 ## Send File from Frontend in Stream
 
-### Notes 26/11
+### Notes 07/12
 
 It was noticed that it is not possible to perform a fetch with `duplex: 'half'` on the frontend, as this functionality is exclusive to Node.js's fetch. The only alternative found was to use websockets, which represented a significant challenge. It was a tough and complex task, but with this, it became possible to send the file in stream from the frontend to the backend.
 
