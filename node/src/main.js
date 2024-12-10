@@ -6,18 +6,23 @@ import { pipeline } from "node:stream/promises";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { monitorMemory } from "./memory.js";
+import { monitorSession, sql } from "./db.js";
 import { v7 as uuidv7 } from "uuid";
 import { generateExcelFile } from "./excel.js";
 import {
 	queue,
 	runThread,
 	runFork,
+	runForkDB,
+	runThreadDB,
 	queueThread,
 	queueFork,
+	queueForkDB,
+	queueThreadDB,
 } from "./excel-run.js";
-import { clear } from "node:console";
 
 // monitorMemory();
+monitorSession();
 
 const serverFactory = (handler, opts) => {
 	const server = http.createServer((req, res) => {
@@ -226,6 +231,28 @@ app.post("/write-file", async (req, reply) => {
 	}
 });
 
+app.post("/write-file-db", async (req, reply) => {
+	try {
+		// const result = await runForkDB();
+		// const result = await runThreadDB();
+		const result = await queueThreadDB.pushAsync(req.id);
+		// const result = await queueForkDB.pushAsync(req.id);
+
+		return reply.send(result);
+	} catch (err) {
+		console.log(err);
+		throw err;
+	}
+});
+
+app.get("/open-connection-sql", async (req, reply) => {
+	await sql`
+		select pg_sleep(5)
+	`;
+
+	return reply.send();
+});
+
 /**
  * Recebe o arquivo e escreve de uma vez
  */
@@ -250,7 +277,6 @@ app.post("/send-file", async (req, reply) => {
  * Recebe o arquivo (o arquivo precisar ser recebido inteiro) e escreve em stream
  */
 app.post("/send-file-stream-by-formdata", async (req, reply) => {
-	console.log("aqui");
 	try {
 		const filePath = path.join("public", "great-size-file.xlsx");
 		const writeStream = fs.createWriteStream(filePath);

@@ -54,11 +54,43 @@ export async function writeFileParallel() {
 	console.timeEnd("write");
 }
 
+export async function writeFileParallelDB() {
+	console.time("write");
+	try {
+		const promises = Array.from(
+			{ length: 5 },
+			() => () => api.post("/write-file-db", {}),
+		);
+		const responses = await Promise.all(promises.map((p) => p()));
+		console.log(responses.map((response) => [response.status, response.data]));
+	} catch (err) {
+		if (err instanceof AxiosError) {
+			console.log("err", err.response.data);
+		}
+	}
+	console.timeEnd("write");
+}
+
 export async function writeFile() {
 	console.time("write");
 	try {
 		const response = await api.post("/write-file", {});
 		console.log(response.status, response.data);
+	} catch (err) {
+		if (err instanceof AxiosError) {
+			console.log("err", err.response.data);
+		}
+	}
+	console.timeEnd("write");
+}
+
+export async function writeFileWithPg() {
+	console.time("write");
+	try {
+		const response = await api.post("/write-file-db", {});
+		console.log(response.data, response.status);
+		const response2 = await api.get("/open-connection-sql", {});
+		console.log(response2.data, response2.status);
 	} catch (err) {
 		if (err instanceof AxiosError) {
 			console.log("err", err.response.data);
@@ -221,8 +253,14 @@ async function main() {
 		case "writeFileParallel":
 			await writeFileParallel();
 			break;
+		case "writeFileParallelDB":
+			await writeFileParallelDB();
+			break;
 		case "writeFile":
 			await writeFile();
+			break;
+		case "writeFileWithPg":
+			await writeFileWithPg();
 			break;
 		case "sendFile":
 			await sendFile();
