@@ -22,7 +22,7 @@ import {
 } from "./excel-run.js";
 
 // monitorMemory();
-monitorSession();
+// monitorSession();
 
 const serverFactory = (handler, opts) => {
 	const server = http.createServer((req, res) => {
@@ -58,7 +58,8 @@ const serverFactory = (handler, opts) => {
 };
 
 const app = Fastify({
-	logger: false,
+	logger: true,
+	disableRequestLogging: true,
 	requestTimeout: 1_000 * 60 * 60,
 	serverFactory,
 });
@@ -78,6 +79,10 @@ app.register(cors, {
 
 app.get("/", (req, reply) => reply.send("ok"));
 
+const PING_INTERVAL = 10_000;
+
+const ws = {};
+
 const wsactions = {
 	/**
 	 * Lida com as operações de upload.
@@ -85,74 +90,100 @@ const wsactions = {
 	 * @param {{status: "start-upload" | "end-upload" | "upload"; chunk?: number[]}} data
 	 * @param {{ fileStream: fs.WriteStream; receivedBytes: number; fileName: string }} fileState
 	 */
-	handleUpload: (socket, { status, chunk }, fileState) => {
+	handleUpload: (currentSocket, { status, chunk }) => {
 		try {
 			if (status === "start-upload") {
 				const fileName = `uploaded-file-${Date.now()}.xlsx`;
-				fileState.fileStream = fs.createWriteStream(path.join(fileName));
+				currentSocket.fileState.fileStream = fs.createWriteStream(
+					path.join(fileName),
+				);
 				console.log(`Iniciando o upload do arquivo: ${fileName}`);
-				fileState.fileName = fileName;
+				currentSocket.fileState.fileName = fileName;
 			} else if (status === "upload") {
-				// // Escreve o pedaço do arquivo no fluxo
-				fileState.fileStream.write(Buffer.from(chunk));
-				fileState.receivedBytes += chunk.length;
+				// Escreve o pedaço do arquivo no fluxo
+				currentSocket.fileState.fileStream.write(Buffer.from(chunk));
+				currentSocket.fileState.receivedBytes += chunk.length;
 				// console.log(`Recebido ${fileState.receivedBytes} bytes`);
 			} else if (status === "end-upload") {
-				// // Finaliza o arquivo quando o upload é concluído
-				fileState.fileStream.end(); // Finaliza o arquivo
-				socket.send(
+				currentSocket.fileState.fileStream.end(); // Finaliza o arquivo
+				currentSocket.socket.send(
 					JSON.stringify({
 						channel: "upload-file",
 						data: {
 							status: "completed",
-							fileName: fileState.fileName,
+							fileName: currentSocket.fileState.fileName,
 						},
 					}),
 				);
-				fileState.fileName = "";
-				fileState.fileStream = null;
-				fileState.receivedBytes = 0;
+				currentSocket.fileState.fileName = "";
+				currentSocket.fileState.fileStream = null;
+				currentSocket.fileState.receivedBytes = 0;
 			}
 		} catch (err) {
-			fileState.fileName = "";
-			fileState.fileStream = null;
-			fileState.receivedBytes = 0;
+			currentSocket.fileState.fileName = "";
+			currentSocket.fileState.fileStream = null;
+			currentSocket.fileState.receivedBytes = 0;
 			throw err;
 		}
 	},
 };
 
-const PING_INTERVAL = 10_000;
-
-const ACTIVE_CONN = {};
-
 app.get("/ws", { websocket: true }, (socket, req) => {
-	const clientIp = req.ip; // Obtém o IP do cliente (isso pode variar dependendo do seu setup)
+	const clientIp = req.ip;
 
 	// Verifica se já existe uma conexão ativa para esse IP
-	if (ACTIVE_CONN[clientIp]) {
+	if (ws[clientIp]) {
 		console.log(`Já existe uma conexão ativa para o IP: ${clientIp}`);
-		ACTIVE_CONN[clientIp].socket.close();
+		ws[clientIp].socket.close();
 		console.log("Substituindo conexão");
-		ACTIVE_CONN[clientIp].socket = socket;
+		ws[clientIp].socket = socket;
 	} else {
-		ACTIVE_CONN[clientIp] = {
+		ws[clientIp] = {
+			isAlive: true,
+			fileState: {
+				fileStream: null,
+				fileName: "",
+				receivedBytes: 0,
+			},
 			socket,
+			ping: function () {
+				const pingInterval = setInterval(() => {
+					if (!this.isAlive) {
+						console.log("Conexão perdida com o cliente");
+						clearInterval(pingInterval);
+						this.socket.terminate();
+						delete ws[clientIp];
+						return;
+					}
+
+					this.isAlive = false;
+					socket.ping();
+				}, PING_INTERVAL);
+
+				socket.on("pong", () => {
+					console.log("pong");
+					this.isAlive = true;
+				});
+
+				socket.on("close", () => {
+					console.log("Conexão WebSocket fechada");
+					clearInterval(pingInterval);
+				});
+
+				socket.on("error", (err) => {
+					console.error("Erro WebSocket:", err);
+					clearInterval(pingInterval);
+				});
+			},
 		};
 	}
 
 	console.log("Conexão estabelecida");
-
-	const fileState = {
-		fileStream: null,
-		fileName: "",
-		receivedBytes: 0,
-	};
-
-	let isAlive = true;
+	const currentSocket = ws[req.ip];
+	currentSocket.ping();
 
 	socket.on("message", (data) => {
-		isAlive = true;
+		currentSocket.isAlive = true;
 		try {
 			/**
 			 * Faz o parsing de uma mensagem recebida.
@@ -173,11 +204,10 @@ app.get("/ws", { websocket: true }, (socket, req) => {
 
 			switch (message.channel) {
 				case "upload-file":
-					wsactions.handleUpload(
-						socket,
-						{ ...message.data, chunk: message.data.chunk || 0 },
-						fileState,
-					);
+					wsactions.handleUpload(currentSocket, {
+						...message.data,
+						chunk: message.data.chunk || 0,
+					});
 					break;
 				default:
 					console.error("Canal desconhecido:", message.channel);
@@ -187,33 +217,6 @@ app.get("/ws", { websocket: true }, (socket, req) => {
 			socket.close();
 			console.error("Erro ao processar mensagem:", err);
 		}
-	});
-
-	const pingInterval = setInterval(() => {
-		if (!isAlive) {
-			console.log("Conexão perdida com o cliente");
-			clearInterval(pingInterval);
-			socket.terminate();
-			return;
-		}
-
-		isAlive = false;
-		socket.ping();
-	}, PING_INTERVAL);
-
-	socket.on("pong", () => {
-		// console.log("pong");
-		isAlive = true;
-	});
-
-	socket.on("close", () => {
-		console.log("Conexão WebSocket fechada");
-		clearInterval(pingInterval);
-	});
-
-	socket.on("error", (err) => {
-		console.error("Erro WebSocket:", err);
-		clearInterval(pingInterval);
 	});
 });
 
@@ -341,4 +344,7 @@ const port = process.env.PORT || 3333;
 app.listen({
 	host: "0.0.0.0",
 	port,
+	listenTextResolver: (address) => {
+		return `started at ${address}`;
+	},
 });

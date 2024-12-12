@@ -1,79 +1,78 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { CardDownload } from "./components/cards/card-download";
 import { useDownload } from "./hooks/use-download";
 import axios from "axios";
 import { BASE_URL } from "./constants";
 
-type WebSocketChannelRequest = "upload-file";
+type WebSocketChannelRequest = "upload-file" | "close";
 
 const url = `ws://${BASE_URL.replace("http://", "")}/ws`;
 
-let ws: WebSocket | null = null;
-
-let isOpen = false;
-
 const socket = {
-	connect: () => {
-		if (isOpen) return;
-		isOpen = true;
-		ws = new WebSocket(url);
+	ws: null as WebSocket | null,
+	connect: function () {
+		this.ws = new WebSocket(url);
 
-		console.log(ws.readyState);
-
-		if (ws && ws.readyState === WebSocket.OPEN) {
-			console.log("A conexão WebSocket já está aberta.");
-			return ws; // Retorna a conexão existente
-		}
-
-		ws.onopen = () => {
+		this.ws.onopen = () => {
 			console.log("Conexão WebSocket aberta.");
 		};
 
-		ws.onmessage = (en) => {
+		this.ws.onmessage = (en) => {
 			console.log({ data: en.data });
 		};
 
-		ws.onclose = () => {
+		this.ws.onclose = () => {
 			console.log("Conexão WebSocket fechada");
 		};
 
-		ws.onerror = (err) => {
+		this.ws.onerror = (err) => {
 			console.error("Erro WebSocket:", err);
-			ws?.close();
+			this.ws?.close();
 		};
+		return new Promise((res, rej) => {
+			if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+				console.log("A conexão WebSocket já está aberta.");
+				res(this.ws);
+			}
 
-		return ws;
+			if (this.ws) {
+				this.ws.onopen = () => {
+					console.log("Conexão WebSocket aberta.");
+					res(this.ws);
+				};
+
+				this.ws.onerror = (err) => {
+					console.error("Erro WebSocket:", err);
+					this.ws?.close();
+					rej(err);
+				};
+				this.ws.onclose = () => {
+					rej("Conexão WebSocket fechada");
+				};
+			}
+
+			return this.ws;
+		});
 	},
-	send: <T = unknown>({
+	disconnect: function () {
+		this.ws?.close();
+	},
+	send: async function <T = unknown>({
 		channel,
 		data,
-	}: { channel: WebSocketChannelRequest; data: T }) => {
-		let attempt = 0; // Contador de tentativas
-		const maxAttempts = 3; // Número máximo de tentativas
+	}: { channel: WebSocketChannelRequest; data: T }) {
+		if (!this.ws || this.ws?.readyState === WebSocket.CLOSED) {
+			console.log("is Closed");
+			await socket.connect();
+		}
 
-		const trySend = () => {
-			if (ws && ws.readyState === WebSocket.OPEN) {
-				ws.send(JSON.stringify({ channel, data }));
-				console.log("Mensagem enviada com sucesso.");
-			} else {
-				if (attempt < maxAttempts) {
-					attempt++; // Incrementa a tentativa
-					console.log(
-						`Tentativa ${attempt} de ${maxAttempts} falhou. Tentando novamente...`,
-					);
-					socket.connect(); // Tenta reconectar
-					setTimeout(() => {
-						trySend(); // Tenta enviar novamente após 1 segundo
-					}, 1_000);
-				} else {
-					console.log(
-						"WebSocket não está aberto. Máximo de tentativas atingido.",
-					);
-				}
-			}
-		};
+		if (this.ws) {
+			this.ws.send(JSON.stringify({ channel, data }));
+			console.log("Mensagem enviada com sucesso.");
+			return true;
+		}
 
-		trySend(); // Chama a função de envio
+		return false;
 	},
 };
 
@@ -87,11 +86,11 @@ const sendFile = async (file: File) => {
 			const chunk = file.slice(offset, offset + chunkSize);
 			const reader = new FileReader();
 
-			reader.onload = () => {
+			reader.onload = async () => {
 				const arrayBuffer = reader.result as ArrayBuffer;
 
 				// Envia o chunk do arquivo
-				socket.send({
+				await socket.send({
 					channel: "upload-file",
 					data: {
 						status: "upload",
@@ -106,7 +105,7 @@ const sendFile = async (file: File) => {
 				} else {
 					console.log("Arquivo enviado completamente!");
 					// Envia o sinal de fim de upload
-					socket.send({
+					await socket.send({
 						channel: "upload-file",
 						data: { status: "end-upload" },
 					});
@@ -128,8 +127,6 @@ const sendFile = async (file: File) => {
 		sendNextChunk(); // Começa o envio dos chunks
 	});
 };
-
-socket.connect();
 
 function App() {
 	const { downloads, byAxios } = useDownload();
@@ -159,11 +156,16 @@ function App() {
 		ref: React.MutableRefObject<HTMLInputElement | null>,
 	) {
 		if (ref.current) {
-			console.log("click");
-			console.log(ref.current.id);
 			ref.current.click();
 		}
 	}
+
+	useEffect(() => {
+		if (!socket.ws) {
+			console.log("Connect");
+			socket.connect();
+		}
+	}, []);
 
 	async function sendByWebsocket(event: React.ChangeEvent<HTMLInputElement>) {
 		try {
@@ -172,7 +174,7 @@ function App() {
 			if (!file) return;
 
 			// Envia o sinal de início do upload
-			socket.send({
+			await socket.send({
 				channel: "upload-file",
 				data: { status: "start-upload" },
 			});
@@ -205,6 +207,18 @@ function App() {
 					onClick={() => openFileExplorer(fileRefWebSocket)}
 				>
 					Send File By Streaming
+				</button>
+				<button type="button" onClick={() => socket.connect()}>
+					Open WS
+				</button>
+				<button type="button" onClick={() => socket.disconnect()}>
+					Close WS
+				</button>
+				<button
+					type="button"
+					onClick={() => socket.send({ channel: "close", data: null })}
+				>
+					Close WS By Server
 				</button>
 				<input
 					type="file"
