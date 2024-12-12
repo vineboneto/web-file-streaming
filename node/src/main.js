@@ -215,6 +215,7 @@ app.get("/ws", { websocket: true }, (socket, req) => {
 			}
 		} catch (err) {
 			socket.close();
+			delete ws[clientIp];
 			console.error("Erro ao processar mensagem:", err);
 		}
 	});
